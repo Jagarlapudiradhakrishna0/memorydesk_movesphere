@@ -9,7 +9,9 @@ import type {
  * Defaults to empty string (relying on Vite proxy in development).
  * Can be configured via VITE_API_BASE_URL in production environments.
  */
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
+const API_BASE_URL =
+  import.meta.env.VITE_API_BASE_URL ||
+  (import.meta.env.PROD ? 'https://memorydesk-movesphere.onrender.com' : '');
 
 export const api = {
   /**

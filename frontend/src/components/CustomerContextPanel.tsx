@@ -16,6 +16,8 @@ interface CustomerContextPanelProps {
   customerId: string;
   onCustomerIdChange: (id: string) => void;
   memories: RecalledMemoryItem[];
+  totalMemoriesCount?: number;
+  memoryStatus?: 'available' | 'unavailable';
   activeInteractionState?: SupportApiResponse['interactionState'];
   onRefreshMemories: () => void;
   isRefreshing: boolean;
@@ -26,6 +28,8 @@ export const CustomerContextPanel: React.FC<CustomerContextPanelProps> = ({
   customerId,
   onCustomerIdChange,
   memories,
+  totalMemoriesCount,
+  memoryStatus = 'available',
   activeInteractionState,
   onRefreshMemories,
   isRefreshing,
@@ -41,14 +45,15 @@ export const CustomerContextPanel: React.FC<CustomerContextPanelProps> = ({
 
   const quickCustomers = ['C001', 'C002', 'C003'];
 
-  // Current issue & environment extracted from active case state
+  // Current issue & environment extracted strictly from active case state (no fabricated fallbacks)
   const currentCase = activeInteractionState?.currentCase;
-  const problemText = activeInteractionState?.problem || currentCase?.problem || 'App crashes when launching';
-  const appName = activeInteractionState?.application || currentCase?.application || 'Instagram';
-  const osName = activeInteractionState?.operatingSystem || currentCase?.operatingSystem || 'iOS 26';
-  const deviceName = activeInteractionState?.device || currentCase?.device || 'iPhone 15';
-  const appVersion = activeInteractionState?.applicationVersion || currentCase?.applicationVersion || '448.0.0';
-  const trigger = activeInteractionState?.trigger || currentCase?.trigger || 'After recent update';
+  const problemText = activeInteractionState?.problem || currentCase?.problem || null;
+  const appName = activeInteractionState?.application || currentCase?.application || null;
+  const osName = activeInteractionState?.operatingSystem || currentCase?.operatingSystem || null;
+  const deviceName = activeInteractionState?.device || currentCase?.device || null;
+  const appVersion = activeInteractionState?.applicationVersion || currentCase?.applicationVersion || null;
+  const trigger = activeInteractionState?.trigger || currentCase?.trigger || null;
+  const hasActiveCase = Boolean(problemText || appName || deviceName || osName);
 
   // Action history for timeline & attempts
   const actionHistory = activeInteractionState?.actionHistory || currentCase?.actionHistory || [];
@@ -90,55 +95,84 @@ export const CustomerContextPanel: React.FC<CustomerContextPanelProps> = ({
         {/* Mini stats row */}
         <div className="profile-stats-tiles">
           <div className="stat-tile">
-            <span className="stat-label">Saved Memories</span>
-            <span className="stat-val">{memories.length}</span>
+            <span className="stat-label">Memories available</span>
+            <span className="stat-val">
+              {memoryStatus === 'unavailable'
+                ? 'Unavailable'
+                : totalMemoriesCount !== undefined
+                ? totalMemoriesCount
+                : memories.length}
+            </span>
           </div>
           <div className="stat-tile">
             <span className="stat-label">Interactions</span>
-            <span className="stat-val">{Math.max(1, (currentCase?.turnCount || 1))}</span>
+            <span className="stat-val">{currentCase?.turnCount || (activeInteractionState ? 1 : 0)}</span>
           </div>
           <div className="stat-tile">
-            <span className="stat-label">Last Active</span>
-            <span className="stat-val">Today</span>
+            <span className="stat-label">AI Memory</span>
+            <span className={`stat-val ${memoryStatus === 'unavailable' ? 'text-rose' : 'text-emerald'}`}>
+              {memoryStatus === 'unavailable' ? 'Offline' : 'Active'}
+            </span>
           </div>
         </div>
       </div>
 
-      {/* Current Issue Card */}
+      {/* Active Case Card (Short-term working memory layer) */}
       <div className="current-issue-card">
         <div className="card-section-label-row">
-          <span className="card-section-label">CURRENT ISSUE</span>
-          <span className="issue-status-badge">In Progress</span>
+          <span className="card-section-label">ACTIVE CASE CONTEXT</span>
+          <span className={`issue-status-badge ${!hasActiveCase ? 'badge-idle' : activeInteractionState?.outcome === 'success' ? 'badge-resolved' : 'badge-progress'}`}>
+            {!hasActiveCase
+              ? 'No Active Issue'
+              : activeInteractionState?.outcome === 'success'
+              ? 'Resolved'
+              : activeInteractionState?.recurrenceDetected
+              ? 'Recurrence'
+              : 'In Progress'}
+          </span>
         </div>
 
-        <h3 className="current-issue-title">{problemText}</h3>
+        {hasActiveCase ? (
+          <>
+            <h3 className="current-issue-title">{problemText || `${appName || 'Application'} issue`}</h3>
 
-        {/* Compact Environment Tiles */}
-        <div className="env-tiles-row">
-          {deviceName && (
-            <span className="env-tile" title="Device">
-              <Smartphone size={12} className="text-secondary" />
-              {deviceName}
-            </span>
-          )}
-          {osName && (
-            <span className="env-tile" title="Operating System">
-              {osName}
-            </span>
-          )}
-          {appName && (
-            <span className="env-tile" title="Application">
-              {appName} {appVersion && `v${appVersion}`}
-            </span>
-          )}
-        </div>
+            {/* Environment details */}
+            <div className="env-tiles-row">
+              {deviceName && (
+                <span className="env-tile" title="Device">
+                  <Smartphone size={12} className="text-secondary" />
+                  {deviceName}
+                </span>
+              )}
+              {osName && (
+                <span className="env-tile" title="Operating System">
+                  {osName}
+                </span>
+              )}
+              {appName && (
+                <span className="env-tile" title="Application">
+                  {appName} {appVersion && `v${appVersion}`}
+                </span>
+              )}
+            </div>
 
-        {trigger && (
-          <div className="trigger-row">
-            <span className="trigger-bullet">&bull;</span>
-            <span className="trigger-text">{trigger}</span>
+            {trigger && (
+              <div className="trigger-row">
+                <span className="trigger-bullet">&bull;</span>
+                <span className="trigger-text">{trigger}</span>
+              </div>
+            )}
+          </>
+        ) : (
+          <div className="no-active-issue-block">
+            <h4 className="no-issue-heading">No active issue in current session</h4>
+            <p className="no-issue-desc">Send a message to start troubleshooting or diagnose an issue.</p>
           </div>
         )}
+
+        <div className="working-context-footer">
+          <span>Working context for this support session</span>
+        </div>
       </div>
 
       {/* Navigation Tabs */}

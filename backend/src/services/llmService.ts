@@ -178,10 +178,10 @@ function buildSystemPrompt(
     'You are MemoryDesk, an adaptive technical support reasoning agent.',
     '',
     'RULES:',
-    '1. ANTI-REPETITION: NEVER ask for information already present in CASE (OS, device, app, version, symptoms). If sufficient=true, set question=null, mode="solve" or "diagnose".',
+    '1. ANTI-REPETITION: NEVER ask for information already present in CASE or historical MEMORY (OS, device, app, version, symptoms). If known or sufficient=true, acknowledge known facts and suggest the next actionable troubleshooting step with question=null, mode="solve" or "diagnose".',
     '2. OUTCOME ATTRIBUTION: When customer reports "That fixed it", attribute SUCCESS only to recent suggested action(s) that have NOT previously failed. Never mark a failed action as success without explicit retry evidence.',
     '3. RETRIES: If customer retried a failed action and reports success, record a new success attempt while preserving the failure attempt in history.',
-    '4. RECURRENCE: If an issue recurs after success, retain historical success and set outcome="in_progress". Do NOT fabricate failure.',
+    '4. RECURRENCE: If an issue recurs after success, retain historical success and set outcome="in_progress". Do NOT fabricate failure. Use historical solutions from MEMORY to recommend the next step.',
     '5. CONCISE TROUBLESHOOTING: Recommend 1-2 concrete, safe troubleshooting steps without generic repetition.',
     '',
     currentCaseSummary,
@@ -577,6 +577,33 @@ export async function generateSupportResponse(
   // 1. Augment working case with explicit facts from customer message
   const extracted = extractCaseEntities(message, currentCase);
 
+  // 1b. Phase 27 Merge Hierarchy:
+  // (1) Explicit customer info -> (2) Current working case -> (3) Relevant Hindsight long-term memory
+  const historicalEntities = customerContext ? extractCaseEntities(customerContext, {
+    customerId: currentCase.customerId,
+    symptoms: [],
+    environment: [],
+    knownFacts: [],
+    missingCriticalInformation: [],
+    askedQuestions: [],
+    actionHistory: [],
+    attemptedActions: [],
+    successfulActions: [],
+    failedActions: [],
+    suggestedActions: [],
+    mode: 'clarify',
+    informationSufficient: false,
+    currentOutcome: 'in_progress',
+    turnCount: 0,
+    lastUpdated: 0,
+  }) : {};
+
+  const mergedDevice = extracted.device || currentCase.device || historicalEntities.device;
+  const mergedOS = extracted.operatingSystem || currentCase.operatingSystem || historicalEntities.operatingSystem;
+  const mergedApp = extracted.application || currentCase.application || historicalEntities.application;
+  const mergedVersion = extracted.applicationVersion || currentCase.applicationVersion || historicalEntities.applicationVersion;
+  const mergedTrigger = extracted.trigger || currentCase.trigger || historicalEntities.trigger;
+
   // 2. Perform evidence-based outcome attribution on action history
   const outcomeAttribution = updateActionHistoryOnFeedback(message, currentCase, turnCount);
 
@@ -584,6 +611,11 @@ export async function generateSupportResponse(
   const workingCase: CurrentCaseState = {
     ...currentCase,
     ...extracted,
+    device: mergedDevice,
+    operatingSystem: mergedOS,
+    application: mergedApp,
+    applicationVersion: mergedVersion,
+    trigger: mergedTrigger,
     turnCount,
     actionHistory: outcomeAttribution.history,
     currentOutcome: outcomeAttribution.outcome,

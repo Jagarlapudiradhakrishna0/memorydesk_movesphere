@@ -16,40 +16,41 @@ export const CustomersView: React.FC<CustomersViewProps> = ({
   allMemories,
 }) => {
   const currentCase = activeInteractionState?.currentCase;
-  const currentProblem = activeInteractionState?.problem || currentCase?.problem || 'Instagram crashes on launch';
-  const device = activeInteractionState?.device || currentCase?.device || 'iPhone 15';
-  const os = activeInteractionState?.operatingSystem || currentCase?.operatingSystem || 'iOS 26';
+  const currentProblem = activeInteractionState?.problem || currentCase?.problem || null;
+  const device = activeInteractionState?.device || currentCase?.device || null;
+  const os = activeInteractionState?.operatingSystem || currentCase?.operatingSystem || null;
+  const envInfo = [device, os].filter(Boolean).join(' • ') || 'Environment not detected';
 
   // Customer profiles available in MemoryDesk
   const customerList = [
     {
       id: 'C001',
       email: 'c001@example.com',
-      status: 'Active',
-      currentIssue: currentProblem,
-      deviceInfo: `${device} • ${os}`,
-      memoryCount: currentCustomerId === 'C001' ? allMemories.length : 15,
-      lastActive: 'Today',
+      status: currentCustomerId === 'C001' ? 'Active' : 'Available',
+      currentIssue: currentCustomerId === 'C001' && currentProblem ? currentProblem : 'Session available',
+      deviceInfo: currentCustomerId === 'C001' && envInfo !== 'Environment not detected' ? envInfo : 'Customer profile',
+      memoryCount: currentCustomerId === 'C001' ? allMemories.length : undefined,
+      lastActive: currentCustomerId === 'C001' ? 'Active now' : 'Persistent bank',
       isCurrent: currentCustomerId === 'C001',
     },
     {
       id: 'C002',
       email: 'c002@example.com',
       status: currentCustomerId === 'C002' ? 'Active' : 'Available',
-      currentIssue: currentCustomerId === 'C002' ? currentProblem : 'No active issue reported',
-      deviceInfo: currentCustomerId === 'C002' ? `${device} • ${os}` : 'Profile available',
-      memoryCount: currentCustomerId === 'C002' ? allMemories.length : 0,
-      lastActive: currentCustomerId === 'C002' ? 'Today' : 'Inactive',
+      currentIssue: currentCustomerId === 'C002' && currentProblem ? currentProblem : 'No active issue reported',
+      deviceInfo: currentCustomerId === 'C002' && envInfo !== 'Environment not detected' ? envInfo : 'Customer profile',
+      memoryCount: currentCustomerId === 'C002' ? allMemories.length : undefined,
+      lastActive: currentCustomerId === 'C002' ? 'Active now' : 'Persistent bank',
       isCurrent: currentCustomerId === 'C002',
     },
     {
       id: 'C003',
       email: 'c003@example.com',
       status: currentCustomerId === 'C003' ? 'Active' : 'Available',
-      currentIssue: currentCustomerId === 'C003' ? currentProblem : 'No active issue reported',
-      deviceInfo: currentCustomerId === 'C003' ? `${device} • ${os}` : 'Profile available',
-      memoryCount: currentCustomerId === 'C003' ? allMemories.length : 0,
-      lastActive: currentCustomerId === 'C003' ? 'Today' : 'Inactive',
+      currentIssue: currentCustomerId === 'C003' && currentProblem ? currentProblem : 'No active issue reported',
+      deviceInfo: currentCustomerId === 'C003' && envInfo !== 'Environment not detected' ? envInfo : 'Customer profile',
+      memoryCount: currentCustomerId === 'C003' ? allMemories.length : undefined,
+      lastActive: currentCustomerId === 'C003' ? 'Active now' : 'Persistent bank',
       isCurrent: currentCustomerId === 'C003',
     },
   ];
@@ -107,7 +108,7 @@ export const CustomersView: React.FC<CustomersViewProps> = ({
                 </span>
                 <span className="info-chip">
                   <Database size={12} className="text-ai-sparkle" />
-                  {customer.memoryCount} Memories
+                  {customer.memoryCount !== undefined ? `${customer.memoryCount} Memories` : 'Hindsight Bank'}
                 </span>
                 <span className="info-chip">
                   <Clock size={12} className="text-secondary" />

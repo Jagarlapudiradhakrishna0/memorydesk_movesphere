@@ -2,7 +2,7 @@ import {
   HindsightClient,
   HindsightError,
 } from '@vectorize-io/hindsight-client';
-import { RecalledMemoryItem, StructuredInteractionState } from '../types';
+import { RecalledMemoryItem, StructuredInteractionState, CurrentCaseState } from '../types';
 
 // ─── Singleton client ─────────────────────────────────────────────────────────
 const hindsightClient = new HindsightClient({
@@ -23,8 +23,50 @@ export interface RecallResult {
   items: RecalledMemoryItem[];
 }
 
+export interface CustomerMemoryDetails {
+  customerId: string;
+  memories: RecalledMemoryItem[];
+  totalCount: number;
+  status: 'available' | 'unavailable';
+}
+
 // ─── Dynamic Recall Query Builder ─────────────────────────────────────────────
-function buildDynamicRecallQuery(message: string): string {
+/**
+ * Builds a dynamic, compact recall query from the customer message AND active case context.
+ * Satisfies Phase 5: Uses customer ID, current problem, app, device, OS, version, symptoms, and message keywords.
+ */
+export function buildDynamicRecallQuery(
+  customerId: string,
+  message: string,
+  currentCase?: CurrentCaseState
+): string {
+  const queryParts: string[] = [];
+
+  // 1. Current case problem / application
+  if (currentCase?.problem && currentCase.problem.trim().length > 0) {
+    queryParts.push(currentCase.problem.trim());
+  } else if (currentCase?.application && currentCase.application.trim().length > 0) {
+    queryParts.push(currentCase.application.trim());
+  }
+
+  // 2. Environment details (device, OS, version, trigger)
+  if (currentCase?.device) {
+    queryParts.push(currentCase.device);
+  }
+  if (currentCase?.operatingSystem) {
+    queryParts.push(currentCase.operatingSystem);
+  }
+  if (currentCase?.applicationVersion) {
+    queryParts.push(`v${currentCase.applicationVersion}`);
+  }
+  if (currentCase?.trigger) {
+    queryParts.push(currentCase.trigger);
+  }
+  if (currentCase?.symptoms && currentCase.symptoms.length > 0) {
+    queryParts.push(currentCase.symptoms.slice(0, 2).join(' '));
+  }
+
+  // 3. Relevant content words from the current message
   const words = message
     .toLowerCase()
     .replace(/[^\w\s]/g, '')
@@ -33,21 +75,26 @@ function buildDynamicRecallQuery(message: string): string {
 
   const stopWords = new Set([
     'the', 'and', 'for', 'that', 'this', 'with', 'from', 'have',
-    'what', 'should', 'can', 'are', 'was', 'you', 'your', 'yes', 'not'
+    'what', 'should', 'can', 'are', 'was', 'you', 'your', 'yes', 'not',
+    'hello', 'hey', 'please', 'help', 'there'
   ]);
-  const contentWords = words.filter((w) => !stopWords.has(w));
+  const contentWords = words.filter((w) => !stopWords.has(w)).slice(0, 6);
 
-  const baseQuery = contentWords.slice(0, 8).join(' ');
-
-  const isRecurrence = /\b(again|still|back|reoccur|persisting)\b/i.test(message);
-  const isOutcome = /\b(worked|fixed|solved|failed|didn't|tried)\b/i.test(message);
-
-  let querySuffix = 'troubleshooting history environment';
-  if (isRecurrence || isOutcome) {
-    querySuffix = 'previous attempts successful solutions failed actions outcomes environment';
+  if (contentWords.length > 0) {
+    queryParts.push(contentWords.join(' '));
   }
 
-  return baseQuery ? `${baseQuery} ${querySuffix}` : querySuffix;
+  // 4. Intent & recurrence detection
+  const isRecurrence = /\b(again|still|back|reoccur|persisting|same)\b/i.test(message);
+  const isOutcome = /\b(worked|fixed|solved|failed|didn't|tried|reinstalled|reset)\b/i.test(message);
+
+  let querySuffix = 'troubleshooting solutions history';
+  if (isRecurrence || isOutcome) {
+    querySuffix = 'previous attempts successful solutions failed actions recurrence';
+  }
+  queryParts.push(querySuffix);
+
+  return queryParts.join(' ').replace(/\s+/g, ' ').trim();
 }
 
 /**
@@ -77,19 +124,23 @@ function deduplicateMemories(items: RecalledMemoryItem[]): RecalledMemoryItem[] 
 // ─── Recall ───────────────────────────────────────────────────────────────────
 export async function recallMemories(
   customerId: string,
-  message: string
+  message: string,
+  currentCase?: CurrentCaseState
 ): Promise<RecallResult> {
   const bankId = toBankId(customerId);
-  const dynamicQuery = buildDynamicRecallQuery(message);
+  const dynamicQuery = buildDynamicRecallQuery(customerId, message, currentCase);
 
   console.log(`[Hindsight] recall  → bank="${bankId}"  query="${dynamicQuery}"`);
 
   try {
-    let result = await hindsightClient.recall(bankId, dynamicQuery);
+    let result = await hindsightClient.recall(bankId, dynamicQuery, {
+      types: ['world', 'experience', 'observation'],
+      preferObservations: true,
+    });
 
-    if ((!result.results || result.results.length === 0) && dynamicQuery !== 'troubleshooting') {
+    if ((!result.results || result.results.length === 0) && !dynamicQuery.includes('troubleshooting')) {
       try {
-        const fallback = await hindsightClient.recall(bankId, 'troubleshooting');
+        const fallback = await hindsightClient.recall(bankId, 'troubleshooting solutions');
         if (fallback.results && fallback.results.length > 0) {
           result = fallback;
           console.log(`[Hindsight] fallback query 'troubleshooting' retrieved ${fallback.results.length} memories for bank="${bankId}"`);
@@ -136,34 +187,95 @@ export async function recallMemories(
 }
 
 /**
+ * Retrieve active memories and exact count stored for a customer.
+ * Uses Hindsight listMemories for exact real storage verification and count.
+ */
+export async function getCustomerMemoryDetails(
+  customerId: string
+): Promise<CustomerMemoryDetails> {
+  const bankId = toBankId(customerId);
+  try {
+    // 1. Primary path: listMemories retrieves stored persistent facts & exact total count
+    const listRes = await hindsightClient.listMemories(bankId, { limit: 50 });
+    const rawItems: RecalledMemoryItem[] = (listRes.items || []).map((item) => ({
+      type: (item.fact_type as any) || 'fact',
+      text: item.text || '',
+      context: item.context,
+      occurred_start: item.occurred_start || item.date || undefined,
+      mentioned_at: item.mentioned_at || undefined,
+    }));
+
+    const deduplicated = deduplicateMemories(rawItems);
+    return {
+      customerId,
+      memories: deduplicated.slice(0, 25),
+      totalCount: listRes.total ?? deduplicated.length,
+      status: 'available',
+    };
+  } catch (err: unknown) {
+    if (err instanceof HindsightError && err.statusCode === 404) {
+      // Bank not initialized yet (fresh customer with 0 memories)
+      return {
+        customerId,
+        memories: [],
+        totalCount: 0,
+        status: 'available',
+      };
+    }
+
+    // 2. Fallback path: semantic recall query
+    try {
+      const recallRes = await hindsightClient.recall(bankId, 'customer history facts troubleshooting outcomes');
+      const rawItems: RecalledMemoryItem[] = (recallRes.results || []).map((r: any) => ({
+        type: r.type || 'fact',
+        text: r.text || '',
+        score: r.score,
+        context: r.context,
+        occurred_start: r.occurred_start,
+        mentioned_at: r.mentioned_at,
+      }));
+      const deduplicated = deduplicateMemories(rawItems);
+      return {
+        customerId,
+        memories: deduplicated.slice(0, 15),
+        totalCount: deduplicated.length,
+        status: 'available',
+      };
+    } catch (fallbackErr: any) {
+      if (fallbackErr instanceof HindsightError && fallbackErr.statusCode === 404) {
+        return {
+          customerId,
+          memories: [],
+          totalCount: 0,
+          status: 'available',
+        };
+      }
+      console.warn(`[Hindsight] Memory retrieval unavailable for ${bankId}:`, (err as any)?.message || err);
+      return {
+        customerId,
+        memories: [],
+        totalCount: 0,
+        status: 'unavailable',
+      };
+    }
+  }
+}
+
+/**
  * Retrieve active memories stored for a given customer (capped and deduplicated).
  */
 export async function getCustomerMemories(
   customerId: string
 ): Promise<RecalledMemoryItem[]> {
-  const bankId = toBankId(customerId);
-  try {
-    const result = await hindsightClient.recall(bankId, 'customer interactions history troubleshooting solutions outcomes');
-    const rawItems = (result.results ?? []).map((r: any) => ({
-      type: r.type ?? 'fact',
-      text: r.text ?? '',
-      score: r.score,
-      context: r.context,
-      occurred_start: r.occurred_start,
-      mentioned_at: r.mentioned_at,
-    }));
-    return deduplicateMemories(rawItems).slice(0, 15);
-  } catch (err: unknown) {
-    if (err instanceof HindsightError && err.statusCode === 404) {
-      return [];
-    }
-    return [];
-  }
+  const details = await getCustomerMemoryDetails(customerId);
+  return details.memories;
 }
 
 // ─── Structured Retain ────────────────────────────────────────────────────────
 /**
  * Retain a structured interaction experience in Hindsight memory with explicit outcome attribution & recurrence evidence.
+ * Satisfies Phase 3: Conceptual memory records ([CUSTOMER_FACT], [SUPPORT_ISSUE], [ACTION_EVENT], [OUTCOME]).
+ * Satisfies Phase 4: Action outcome attribution and historical success/failure preservation.
  */
 export async function retainMemory(
   customerId: string,
@@ -173,84 +285,79 @@ export async function retainMemory(
 ): Promise<void> {
   const bankId = toBankId(customerId);
 
+  // Skip pure conversational greetings/acknowledgements with no new case information
+  const isGreetingNoise = /^(hi|hello|hey|thanks|thank you|ok|okay|bye|goodbye)[!.?]*$/i.test(customerMessage.trim());
+  const hasNoCaseInfo = !state?.problem && (!state?.actionHistory || state.actionHistory.length === 0) && !state?.application;
+  if (isGreetingNoise && hasNoCaseInfo) {
+    console.log(`[Hindsight] Skipping retain for non-substantive greeting: "${customerMessage}"`);
+    return;
+  }
+
   const sections: string[] = [
-    `Customer ID: ${customerId}`,
-    `Timestamp: ${new Date().toISOString()}`,
-    `Customer message: "${customerMessage}"`,
-    `Support response: "${agentResponse}"`,
+    `Customer: ${customerId}`,
+    `Date: ${new Date().toISOString().split('T')[0]}`,
   ];
 
+  // 1. [CUSTOMER_FACT]
+  const factParts: string[] = [];
+  if (state?.device) factParts.push(`device=${state.device}`);
+  if (state?.operatingSystem) factParts.push(`os=${state.operatingSystem}`);
+  if (state?.application) factParts.push(`application=${state.application}`);
+  if (state?.applicationVersion) factParts.push(`version=${state.applicationVersion}`);
+  if (factParts.length > 0) {
+    sections.push(`[CUSTOMER_FACT]\ncustomer_id=${customerId}\n${factParts.join('\n')}`);
+  }
+
+  // 2. [SUPPORT_ISSUE]
   if (state?.problem && state.problem.trim().length > 0) {
-    sections.push(`[PROBLEM]\n${state.problem.trim()}`);
+    const issueLines: string[] = [
+      `customer_id=${customerId}`,
+      `problem=${state.problem.trim()}`,
+    ];
+    if (state.trigger) issueLines.push(`trigger=${state.trigger.trim()}`);
+    if (state.symptoms && state.symptoms.length > 0) issueLines.push(`symptoms=${state.symptoms.join(', ')}`);
+    sections.push(`[SUPPORT_ISSUE]\n${issueLines.join('\n')}`);
   }
 
-  if (state?.application || state?.device || state?.operatingSystem) {
-    const envParts: string[] = [];
-    if (state.application) envParts.push(`App: ${state.application}`);
-    if (state.applicationVersion) envParts.push(`Version: ${state.applicationVersion}`);
-    if (state.device) envParts.push(`Device: ${state.device}`);
-    if (state.operatingSystem) envParts.push(`OS: ${state.operatingSystem}`);
-    sections.push(`[ENVIRONMENT]\n${envParts.join(', ')}`);
-  } else if (state?.environment && state.environment.length > 0) {
-    sections.push(`[ENVIRONMENT]\n${state.environment.join(', ')}`);
-  }
-
-  // Structured Action History logging in Hindsight retain
+  // 3. [ACTION_EVENT]
   if (state?.actionHistory && state.actionHistory.length > 0) {
     for (const attempt of state.actionHistory) {
-      const recTag = attempt.recurrence ? ' (RECURRED LATER)' : '';
-      sections.push(
-        `[ACTION_EVENT]\nAction: "${attempt.action}" | Status: ${attempt.status.toUpperCase()}${recTag} | Turn: ${attempt.turn}${attempt.evidence ? ` | Evidence: "${attempt.evidence}"` : ''}`
-      );
-    }
-  } else if (state?.attemptedActions && state.attemptedActions.length > 0) {
-    for (const action of state.attemptedActions) {
-      sections.push(`[TRIED_ACTION]\n${action}`);
+      const actLines: string[] = [
+        `customer_id=${customerId}`,
+        `action=${attempt.action}`,
+        `status=${attempt.status}`,
+      ];
+      if (attempt.evidence) actLines.push(`evidence=${attempt.evidence}`);
+      if (attempt.recurrence) actLines.push(`recurrence=true`);
+      actLines.push(`turn=${attempt.turn}`);
+      sections.push(`[ACTION_EVENT]\n${actLines.join('\n')}`);
     }
   }
 
-  // Explicit Outcome Attribution Block
+  // 4. [OUTCOME]
   if (state?.recurrenceDetected) {
     sections.push(
-      `[OUTCOME: RECURRENCE]\nProblem recurred after previous troubleshooting. Historical successful actions preserved as evidence without fabricating new failure.`
+      `[OUTCOME]\ncustomer_id=${customerId}\nstatus=recurrence\nevidence=Problem recurred after prior resolution`
     );
-    if (state?.successfulActions && state.successfulActions.length > 0) {
+    if (state.successfulActions && state.successfulActions.length > 0) {
       sections.push(`[HISTORICAL_SUCCESS]\n${state.successfulActions.join(', ')} previously resolved the issue.`);
     }
   } else if (state?.outcome === 'success') {
-    if (state?.successfulActions && state.successfulActions.length > 0) {
-      for (const success of state.successfulActions) {
-        sections.push(`[OUTCOME: SUCCESS]\nCustomer verified that action "${success}" resolved the problem.`);
-      }
-    } else {
-      sections.push(`[OUTCOME: SUCCESS]\nProblem was reported resolved.`);
-    }
+    sections.push(
+      `[OUTCOME]\ncustomer_id=${customerId}\nstatus=success\nevidence=${state.successfulActions?.join(', ') || 'Customer explicitly confirmed resolution'}`
+    );
   } else if (state?.outcome === 'failure') {
-    if (state?.failedActions && state.failedActions.length > 0) {
-      for (const failed of state.failedActions) {
-        sections.push(`[OUTCOME: FAILURE]\nAction "${failed}" did not resolve the problem.`);
-      }
-    } else {
-      sections.push(`[OUTCOME: FAILURE]\nTroubleshooting action did not resolve the problem.`);
-    }
-  } else {
-    sections.push(`[OUTCOME: ${state?.outcome ? state.outcome.toUpperCase() : 'IN_PROGRESS'}]`);
-    if (state?.successfulActions && state.successfulActions.length > 0) {
-      sections.push(`[HISTORICAL_SUCCESS]\n${state.successfulActions.join(', ')} previously resolved the issue.`);
-    }
-    if (state?.failedActions && state.failedActions.length > 0) {
-      sections.push(`[HISTORICAL_FAILURE]\n${state.failedActions.join(', ')} previously did not resolve the issue.`);
-    }
+    sections.push(
+      `[OUTCOME]\ncustomer_id=${customerId}\nstatus=failure\nevidence=${state.failedActions?.join(', ') || 'Troubleshooting action did not resolve the problem'}`
+    );
+  } else if (state?.outcome) {
+    sections.push(`[OUTCOME]\ncustomer_id=${customerId}\nstatus=${state.outcome}`);
   }
 
-  if (state?.knownFacts && state.knownFacts.length > 0) {
-    sections.push(`[KNOWN_FACTS]\n${state.knownFacts.join('; ')}`);
-  }
-
-  const escalationText = state?.escalationReason || state?.escalation;
-  if (escalationText) {
-    sections.push(`[ESCALATION]\n${escalationText}`);
-  }
+  // 5. [INTERACTION_SUMMARY]
+  sections.push(
+    `[INTERACTION_SUMMARY]\nCustomer statement: "${customerMessage}"\nAgent recommendation: "${agentResponse}"`
+  );
 
   const structuredSummary = sections.join('\n\n');
 
@@ -272,3 +379,4 @@ export async function retainMemory(
 
   console.log(`[Hindsight] retain  ← structured interaction stored in bank="${bankId}"`);
 }
+

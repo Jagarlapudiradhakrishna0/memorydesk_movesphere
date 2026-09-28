@@ -38,7 +38,7 @@ export async function runSupportAgent(
   const currentCase = getOrCreateCaseState(customerId);
 
   // ── Step 2: Hindsight Memory Recall (Long-term) ─────────────────────────────
-  const { contextString, items } = await recallMemories(customerId, message);
+  const { contextString, items } = await recallMemories(customerId, message, currentCase);
 
   if (contextString) {
     console.log(`\n[Agent] ✓ Recalled ${items.length} relevant memories from bank:`);

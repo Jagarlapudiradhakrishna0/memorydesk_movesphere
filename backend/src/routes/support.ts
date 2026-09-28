@@ -1,7 +1,7 @@
 import { Router, Request, Response, NextFunction } from 'express';
 import { SupportRequest } from '../types';
 import { runSupportAgent } from '../services/agentService';
-import { getCustomerMemories } from '../services/hindsightService';
+import { getCustomerMemories, getCustomerMemoryDetails } from '../services/hindsightService';
 import { resetCaseState, getOrCreateCaseState } from '../services/caseService';
 
 const router = Router();
@@ -9,7 +9,8 @@ const router = Router();
 /**
  * GET /api/support/memories/:customerId
  *
- * Retrieves active Hindsight memories stored for the specified customer.
+ * Retrieves active Hindsight memories stored for the specified customer,
+ * including real storage count and service status.
  */
 router.get(
   '/memories/:customerId',
@@ -20,8 +21,13 @@ router.get(
         res.status(400).json({ error: 'customerId is required' });
         return;
       }
-      const memories = await getCustomerMemories(customerId.trim());
-      res.status(200).json({ customerId: customerId.trim(), memories });
+      const details = await getCustomerMemoryDetails(customerId.trim());
+      res.status(200).json({
+        customerId: details.customerId,
+        memories: details.memories,
+        totalCount: details.totalCount,
+        status: details.status,
+      });
     } catch (err) {
       next(err);
     }

@@ -87,6 +87,9 @@ export const App: React.FC = () => {
     }
   }, []);
 
+  const [totalMemoriesCount, setTotalMemoriesCount] = useState<number | undefined>(undefined);
+  const [memoryStatus, setMemoryStatus] = useState<'available' | 'unavailable'>('available');
+
   // Fetch memory bank for current customer
   const fetchCustomerMemories = useCallback(async (id: string) => {
     if (!id) return;
@@ -94,8 +97,11 @@ export const App: React.FC = () => {
     try {
       const data = await api.getCustomerMemories(id);
       setAllMemories(data.memories || []);
+      setTotalMemoriesCount(data.totalCount);
+      setMemoryStatus(data.status || 'available');
     } catch (err: any) {
       console.warn('Failed to fetch memories:', err);
+      setMemoryStatus('unavailable');
     } finally {
       setIsRefreshing(false);
     }
@@ -269,6 +275,8 @@ export const App: React.FC = () => {
                   customerId={customerId}
                   onCustomerIdChange={handleCustomerIdChange}
                   memories={allMemories}
+                  totalMemoriesCount={totalMemoriesCount}
+                  memoryStatus={memoryStatus}
                   activeInteractionState={activeInteractionState}
                   onRefreshMemories={() => fetchCustomerMemories(customerId)}
                   isRefreshing={isRefreshing}

@@ -143,6 +143,8 @@ export type LLMProviderStatus = 'available' | 'rate_limited' | 'unavailable';
 export interface CustomerMemoryResponse {
   customerId: string;
   memories: RecalledMemoryItem[];
+  totalCount?: number;
+  status?: 'available' | 'unavailable';
 }
 
 export interface HealthResponse {
