@@ -78,7 +78,7 @@ app.use((err: Error & { statusCode?: number }, _req: Request, res: Response, _ne
 const PORT = parseInt(process.env.PORT ?? '3000', 10);
 
 if (process.env.NODE_ENV !== 'test') {
-  app.listen(PORT, () => {
+  app.listen(PORT, '0.0.0.0', () => {
     const llmConfig = getProviderConfig();
     console.log(`\n🧠 MemoryDesk backend running on http://localhost:${PORT}`);
     console.log(`   LLM Provider:  ${llmConfig.provider.toUpperCase()} (${llmConfig.configured ? 'Configured' : 'Missing Key'})`);
