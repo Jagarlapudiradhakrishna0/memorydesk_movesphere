@@ -7,7 +7,8 @@ import {
   Zap,
   Settings,
   Sparkles,
-  Bot
+  Bot,
+  X
 } from 'lucide-react';
 
 export interface NavItem {
@@ -20,11 +21,15 @@ export interface NavItem {
 interface SidebarProps {
   activeTab?: string;
   onTabSelect?: (tabId: string, path: string) => void;
+  isOpenOnMobile?: boolean;
+  onCloseMobile?: () => void;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
   activeTab = 'support',
   onTabSelect,
+  isOpenOnMobile = false,
+  onCloseMobile,
 }) => {
   const navItems: NavItem[] = [
     { id: 'support', label: 'Support', icon: MessageSquare, path: '/support' },
@@ -36,68 +41,99 @@ export const Sidebar: React.FC<SidebarProps> = ({
   ];
 
   return (
-    <aside className="app-sidebar" aria-label="Sidebar Navigation">
-      {/* Brand Header */}
-      <div className="sidebar-brand-section">
-        <div className="sidebar-brand-row">
-          <div className="sidebar-logo-glow">
-            <Bot size={22} className="text-brand-purple" />
-          </div>
-          <div className="sidebar-brand-text">
-            <h1 className="sidebar-brand-name">MemoryDesk</h1>
-            <p className="sidebar-brand-tagline">Support that remembers.</p>
-          </div>
-        </div>
-      </div>
+    <>
+      {/* Mobile Drawer Backdrop */}
+      {isOpenOnMobile && (
+        <div
+          className="mobile-sidebar-backdrop"
+          onClick={onCloseMobile}
+          aria-hidden="true"
+        />
+      )}
 
-      {/* Navigation Links */}
-      <nav className="sidebar-nav" aria-label="Primary Navigation">
-        {navItems.map((item) => {
-          const Icon = item.icon;
-          const isActive = activeTab === item.id;
-          return (
-            <button
-              key={item.id}
-              type="button"
-              className={`sidebar-nav-item ${isActive ? 'nav-item-active' : ''}`}
-              onClick={() => onTabSelect && onTabSelect(item.id, item.path)}
-              aria-label={item.label}
-              aria-current={isActive ? 'page' : undefined}
-            >
-              <Icon size={18} className="nav-item-icon" />
-              <span className="nav-item-label">{item.label}</span>
-              {isActive && <span className="nav-item-indicator" />}
-            </button>
-          );
-        })}
-      </nav>
+      <aside
+        className={`app-sidebar ${isOpenOnMobile ? 'sidebar-mobile-open' : ''}`}
+        aria-label="Sidebar Navigation"
+      >
+        {/* Brand Header */}
+        <div className="sidebar-brand-section">
+          <div className="sidebar-brand-row">
+            <div className="sidebar-brand-main">
+              <div className="sidebar-logo-glow">
+                <Bot size={22} className="text-brand-purple" />
+              </div>
+              <div className="sidebar-brand-text">
+                <h1 className="sidebar-brand-name">MemoryDesk</h1>
+                <p className="sidebar-brand-tagline">Support that remembers.</p>
+              </div>
+            </div>
 
-      {/* AI Memory Callout Card */}
-      <div className="sidebar-ai-card">
-        <div className="ai-card-glow" />
-        <div className="ai-card-header">
-          <div className="ai-card-icon-wrap">
-            <Sparkles size={16} className="text-ai-sparkle" />
+            {/* Mobile close button */}
+            {onCloseMobile && (
+              <button
+                type="button"
+                className="sidebar-close-mobile-btn"
+                onClick={onCloseMobile}
+                aria-label="Close sidebar"
+              >
+                <X size={20} />
+              </button>
+            )}
           </div>
-          <span className="ai-card-badge">AI Native</span>
         </div>
-        <h4 className="ai-card-title">AI-Powered Support</h4>
-        <p className="ai-card-description">
-          Cross-session memory automatically recalls customer history and outcomes.
-        </p>
-      </div>
 
-      {/* User / Agent Footer */}
-      <div className="sidebar-footer">
-        <div className="sidebar-agent-avatar">
-          <span>SA</span>
-          <span className="agent-online-dot" />
+        {/* Navigation Links */}
+        <nav className="sidebar-nav" aria-label="Primary Navigation">
+          {navItems.map((item) => {
+            const Icon = item.icon;
+            const isActive = activeTab === item.id;
+            return (
+              <button
+                key={item.id}
+                type="button"
+                className={`sidebar-nav-item ${isActive ? 'nav-item-active' : ''}`}
+                onClick={() => {
+                  if (onTabSelect) onTabSelect(item.id, item.path);
+                  if (onCloseMobile) onCloseMobile();
+                }}
+                aria-label={item.label}
+                aria-current={isActive ? 'page' : undefined}
+              >
+                <Icon size={18} className="nav-item-icon" />
+                <span className="nav-item-label">{item.label}</span>
+                {isActive && <span className="nav-item-indicator" />}
+              </button>
+            );
+          })}
+        </nav>
+
+        {/* AI Memory Callout Card */}
+        <div className="sidebar-ai-card">
+          <div className="ai-card-glow" />
+          <div className="ai-card-header">
+            <div className="ai-card-icon-wrap">
+              <Sparkles size={16} className="text-ai-sparkle" />
+            </div>
+            <span className="ai-card-badge">AI Native</span>
+          </div>
+          <h4 className="ai-card-title">AI-Powered Support</h4>
+          <p className="ai-card-description">
+            Cross-session memory automatically recalls customer history and outcomes.
+          </p>
         </div>
-        <div className="sidebar-agent-info">
-          <span className="agent-name">Support Agent</span>
-          <span className="agent-status-label">Online</span>
+
+        {/* User / Agent Footer */}
+        <div className="sidebar-footer">
+          <div className="sidebar-agent-avatar">
+            <span>SA</span>
+            <span className="agent-online-dot" />
+          </div>
+          <div className="sidebar-agent-info">
+            <span className="agent-name">Support Agent</span>
+            <span className="agent-status-label">Online</span>
+          </div>
         </div>
-      </div>
-    </aside>
+      </aside>
+    </>
   );
 };

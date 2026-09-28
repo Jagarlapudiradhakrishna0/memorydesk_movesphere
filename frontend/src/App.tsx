@@ -52,6 +52,8 @@ export const App: React.FC = () => {
   const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
   const [llmInfo, setLlmInfo] = useState<HealthResponse['llm'] | undefined>(undefined);
   const [forcedContextTab, setForcedContextTab] = useState<'timeline' | 'memories' | 'attempts' | undefined>(undefined);
+  const [mobileSidebarOpen, setMobileSidebarOpen] = useState<boolean>(false);
+  const [mobileSupportTab, setMobileSupportTab] = useState<'conversation' | 'context' | 'insights'>('conversation');
 
   // ── Navigation Router ──
   const navigateTo = useCallback((tabId: string, pathOverride?: string) => {
@@ -192,6 +194,7 @@ export const App: React.FC = () => {
   };
 
   const handleActionSelect = (actionText: string) => {
+    setMobileSupportTab('conversation');
     handleSendMessage(actionText);
   };
 
@@ -205,6 +208,8 @@ export const App: React.FC = () => {
       <Sidebar
         activeTab={sidebarTab}
         onTabSelect={(tabId, path) => navigateTo(tabId, path)}
+        isOpenOnMobile={mobileSidebarOpen}
+        onCloseMobile={() => setMobileSidebarOpen(false)}
       />
 
       {/* MAIN CONTAINER */}
@@ -213,48 +218,95 @@ export const App: React.FC = () => {
         <TopNavbar
           llmInfo={llmInfo}
           isProcessing={isLoading}
+          onToggleMobileSidebar={() => setMobileSidebarOpen((prev) => !prev)}
         />
 
         {/* WORKSPACE CONTENT ROUTER */}
         {sidebarTab === 'support' && (
-          <main className="memorydesk-workspace-grid">
-            {/* COLUMN 1: Customer Context & Timeline (Left) */}
-            <section className="workspace-col col-customer-context" aria-label="Customer Context">
-              <CustomerContextPanel
-                customerId={customerId}
-                onCustomerIdChange={handleCustomerIdChange}
-                memories={allMemories}
-                activeInteractionState={activeInteractionState}
-                onRefreshMemories={() => fetchCustomerMemories(customerId)}
-                isRefreshing={isRefreshing}
-                forcedTab={forcedContextTab}
-              />
-            </section>
+          <div className="workspace-support-container">
+            {/* Mobile View Switcher Tabs (Only visible on mobile <= 768px) */}
+            <div className="mobile-support-tabs-bar" role="tablist" aria-label="Support sections">
+              <button
+                type="button"
+                role="tab"
+                aria-selected={mobileSupportTab === 'conversation'}
+                className={`mobile-tab-btn ${mobileSupportTab === 'conversation' ? 'mobile-tab-active' : ''}`}
+                onClick={() => setMobileSupportTab('conversation')}
+              >
+                <span>💬 Chat</span>
+                {messages.length > 0 && <span className="mobile-tab-badge">{messages.length}</span>}
+              </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={mobileSupportTab === 'context'}
+                className={`mobile-tab-btn ${mobileSupportTab === 'context' ? 'mobile-tab-active' : ''}`}
+                onClick={() => setMobileSupportTab('context')}
+              >
+                <span>👤 Customer</span>
+              </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={mobileSupportTab === 'insights'}
+                className={`mobile-tab-btn ${mobileSupportTab === 'insights' ? 'mobile-tab-active' : ''}`}
+                onClick={() => setMobileSupportTab('insights')}
+              >
+                <span>✨ AI Insights</span>
+                {lastRecalledMemories.length > 0 && (
+                  <span className="mobile-tab-badge badge-sparkle">{lastRecalledMemories.length}</span>
+                )}
+              </button>
+            </div>
 
-            {/* COLUMN 2: Central Support Conversation (Center Focus) */}
-            <section className="workspace-col col-conversation" aria-label="Support Conversation">
-              <ConversationArea
-                customerId={customerId}
-                messages={messages}
-                onSendMessage={handleSendMessage}
-                isLoading={isLoading}
-                loadingStage={loadingStage}
-                error={error}
-                onClearChat={handleClearChat}
-                llmInfo={llmInfo}
-              />
-            </section>
+            <main className={`memorydesk-workspace-grid mobile-show-${mobileSupportTab}`}>
+              {/* COLUMN 1: Customer Context & Timeline (Left) */}
+              <section
+                className={`workspace-col col-customer-context ${mobileSupportTab === 'context' ? 'mobile-col-active' : ''}`}
+                aria-label="Customer Context"
+              >
+                <CustomerContextPanel
+                  customerId={customerId}
+                  onCustomerIdChange={handleCustomerIdChange}
+                  memories={allMemories}
+                  activeInteractionState={activeInteractionState}
+                  onRefreshMemories={() => fetchCustomerMemories(customerId)}
+                  isRefreshing={isRefreshing}
+                  forcedTab={forcedContextTab}
+                />
+              </section>
 
-            {/* COLUMN 3: AI Context / Memories / Actions (Right) */}
-            <section className="workspace-col col-ai-context" aria-label="AI Context and Actions">
-              <RightSidebar
-                lastRecalledMemories={lastRecalledMemories}
-                activeInteractionState={activeInteractionState}
-                onActionSelect={handleActionSelect}
-                onViewAllMemories={handleViewAllMemories}
-              />
-            </section>
-          </main>
+              {/* COLUMN 2: Central Support Conversation (Center Focus) */}
+              <section
+                className={`workspace-col col-conversation ${mobileSupportTab === 'conversation' ? 'mobile-col-active' : ''}`}
+                aria-label="Support Conversation"
+              >
+                <ConversationArea
+                  customerId={customerId}
+                  messages={messages}
+                  onSendMessage={handleSendMessage}
+                  isLoading={isLoading}
+                  loadingStage={loadingStage}
+                  error={error}
+                  onClearChat={handleClearChat}
+                  llmInfo={llmInfo}
+                />
+              </section>
+
+              {/* COLUMN 3: AI Context / Memories / Actions (Right) */}
+              <section
+                className={`workspace-col col-ai-context ${mobileSupportTab === 'insights' ? 'mobile-col-active' : ''}`}
+                aria-label="AI Context and Actions"
+              >
+                <RightSidebar
+                  lastRecalledMemories={lastRecalledMemories}
+                  activeInteractionState={activeInteractionState}
+                  onActionSelect={handleActionSelect}
+                  onViewAllMemories={handleViewAllMemories}
+                />
+              </section>
+            </main>
+          </div>
         )}
 
         {sidebarTab === 'customers' && (
