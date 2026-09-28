@@ -22,7 +22,7 @@ import type {
 const pathToTab = (pathname: string): string => {
   const p = pathname.toLowerCase();
   if (p.startsWith('/customers')) return 'customers';
-  if (p.startsWith('/memory')) return 'memory';
+  if (p.startsWith('/memory-bank') || p.startsWith('/memory')) return 'memory';
   if (p.startsWith('/analytics')) return 'analytics';
   if (p.startsWith('/automation')) return 'automation';
   if (p.startsWith('/settings')) return 'settings';
@@ -33,6 +33,7 @@ const tabToPath: Record<string, string> = {
   support: '/support',
   customers: '/customers',
   memory: '/memory',
+  'memory-bank': '/memory',
   analytics: '/analytics',
   automation: '/automation',
   settings: '/settings',
