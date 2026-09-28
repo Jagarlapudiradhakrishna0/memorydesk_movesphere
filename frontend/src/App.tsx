@@ -10,6 +10,7 @@ import { MemoryBankView } from './pages/MemoryBankView';
 import { AnalyticsView } from './pages/AnalyticsView';
 import { AutomationView } from './pages/AutomationView';
 import { SettingsView } from './pages/SettingsView';
+import { WelcomePage } from './pages/WelcomePage';
 import { api } from './services/api';
 import type {
   ChatMessage,
@@ -21,15 +22,18 @@ import type {
 // Map URL paths to navigation tab IDs
 const pathToTab = (pathname: string): string => {
   const p = pathname.toLowerCase();
+  if (p === '/' || p === '') return 'welcome';
   if (p.startsWith('/customers')) return 'customers';
   if (p.startsWith('/memory-bank') || p.startsWith('/memory')) return 'memory';
   if (p.startsWith('/analytics')) return 'analytics';
   if (p.startsWith('/automation')) return 'automation';
   if (p.startsWith('/settings')) return 'settings';
-  return 'support';
+  if (p.startsWith('/support')) return 'support';
+  return 'welcome';
 };
 
 const tabToPath: Record<string, string> = {
+  welcome: '/',
   support: '/support',
   customers: '/customers',
   memory: '/memory',
@@ -207,6 +211,10 @@ export const App: React.FC = () => {
   const handleViewAllMemories = () => {
     navigateTo('memory');
   };
+
+  if (sidebarTab === 'welcome') {
+    return <WelcomePage onNavigateToSupport={() => navigateTo('support')} />;
+  }
 
   return (
     <div className="memorydesk-layout">
