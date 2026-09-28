@@ -35,7 +35,7 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({
           <Search size={16} className="search-icon" />
           <input
             type="text"
-            placeholder="Search customers, issues..."
+            placeholder="Search..."
             className="top-search-input"
           />
           <kbd className="search-shortcut-badge">⌘ K</kbd>
