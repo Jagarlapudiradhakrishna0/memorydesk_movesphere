@@ -1234,21 +1234,26 @@
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03);
 }
 
-.bubble-customer {
-  background: linear-gradient(135deg, #4f46e5 0%, #4338ca 100%);
-  color: #ffffff;
+.chat-message-row.row-customer .message-bubble.bubble-customer,
+.message-bubble.bubble-customer {
+  background: linear-gradient(135deg, #4f46e5 0%, #3730a3 100%) !important;
+  color: #ffffff !important;
+  border: 1px solid rgba(79, 70, 229, 0.4) !important;
   border-top-right-radius: 4px;
-  box-shadow: 0 2px 6px rgba(79, 70, 229, 0.25);
+  box-shadow: 0 4px 12px rgba(79, 70, 229, 0.35) !important;
+}
+
+.chat-message-row.row-customer .message-bubble.bubble-customer .message-body-text,
+.bubble-customer .message-body-text {
+  color: #ffffff !important;
+  font-weight: 500;
+  white-space: pre-wrap;
 }
 
 .bubble-degraded {
   background-color: #fffbeb;
   border: 1px solid #fde68a;
   color: #92400e;
-}
-
-.message-body-text {
-  white-space: pre-wrap;
 }
 
 .memory-recall-drawer {

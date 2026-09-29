@@ -728,19 +728,19 @@
   line-height: 1.4;
 }
 
-.bubble-customer {
+.dialog-bubble-pill.bubble-customer {
   background: rgba(255, 255, 255, 0.06);
   color: #ffffff;
   border: 1px solid rgba(255, 255, 255, 0.08);
 }
 
-.bubble-agent-repeat {
+.dialog-bubble-pill.bubble-agent-repeat {
   background: rgba(239, 68, 68, 0.08);
   color: #fca5a5;
   border: 1px solid rgba(239, 68, 68, 0.2);
 }
 
-.bubble-agent-memory {
+.dialog-bubble-pill.bubble-agent-memory {
   background: rgba(14, 35, 65, 0.75);
   color: #e2e8f0;
   border: 1px solid rgba(34, 211, 238, 0.35);
