@@ -13,9 +13,36 @@ import { getProviderConfig, getLLMHealthStatus } from './services/llmService';
 // ─── App ──────────────────────────────────────────────────────────────────────
 const app = express();
 
-const corsOrigin = process.env.CORS_ORIGIN || '*';
-app.use(cors({ origin: corsOrigin }));
+// Enable robust CORS across Vercel, localhost, and custom domains
+const corsOrigin = process.env.CORS_ORIGIN;
+app.use(
+  cors({
+    origin: corsOrigin ? (corsOrigin === '*' ? '*' : corsOrigin.split(',').map((s) => s.trim())) : true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept'],
+  })
+);
+app.options('*', cors());
+
+// Normalize duplicate slashes in URLs (e.g. //health or //api/support/message caused by base URLs with trailing slashes)
+app.use((req: Request, _res: Response, next: NextFunction) => {
+  if (req.url && req.url.includes('//')) {
+    req.url = req.url.replace(/\/+/g, '/');
+  }
+  next();
+});
+
 app.use(express.json());
+
+// Root endpoint for platform health probes and service identification
+app.get('/', (_req: Request, res: Response) => {
+  res.json({
+    service: 'MemoryDesk API',
+    status: 'ok',
+    health: '/health',
+    timestamp: new Date().toISOString(),
+  });
+});
 
 // ─── Routes ───────────────────────────────────────────────────────────────────
 app.use('/api/support', supportRouter);

@@ -6,12 +6,13 @@ import type {
 
 /**
  * Base URL for the MemoryDesk backend API.
- * Defaults to empty string (relying on Vite proxy in development).
- * Can be configured via VITE_API_BASE_URL in production environments.
+ * Uses the deployed production backend on Render by default.
  */
-const API_BASE_URL =
-  import.meta.env.VITE_API_BASE_URL ||
-  (import.meta.env.PROD ? 'https://memorydesk-movesphere.onrender.com' : '');
+const rawApiBaseUrl =
+  import.meta.env.VITE_API_BASE_URL || 'https://memorydesk-movesphere.onrender.com';
+
+// Guarantee no trailing slash to prevent double-slash 404 routes (e.g. //health or //api/...)
+const API_BASE_URL = rawApiBaseUrl.replace(/\/+$/, '');
 
 export const api = {
   /**

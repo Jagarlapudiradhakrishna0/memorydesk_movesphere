@@ -5,8 +5,9 @@ import {
 import { RecalledMemoryItem, StructuredInteractionState, CurrentCaseState } from '../types';
 
 // ─── Singleton client ─────────────────────────────────────────────────────────
+const rawHindsightBaseUrl = process.env.HINDSIGHT_BASE_URL ?? 'https://api.hindsight.vectorize.io';
 const hindsightClient = new HindsightClient({
-  baseUrl: process.env.HINDSIGHT_BASE_URL ?? 'https://api.hindsight.vectorize.io',
+  baseUrl: rawHindsightBaseUrl.replace(/\/+$/, ''),
   ...(process.env.HINDSIGHT_API_KEY ? { apiKey: process.env.HINDSIGHT_API_KEY } : {}),
 });
 

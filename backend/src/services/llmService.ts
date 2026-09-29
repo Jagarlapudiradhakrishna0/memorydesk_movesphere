@@ -713,7 +713,7 @@ export async function generateSupportResponse(
         { role: 'user', content: userContent },
       ],
       temperature: 0.2,
-      max_tokens: 384,
+      max_tokens: 1024,
       ...(config.provider === 'groq' ? { reasoning_effort: 'low' as any } : {}),
       ...(config.provider === 'openai' ? { response_format: { type: 'json_object' } } : {}),
     });
